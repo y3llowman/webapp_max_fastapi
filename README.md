@@ -1,97 +1,300 @@
-# WebApp Telegram FastAPI
+# MAX Mini App + FastAPI + PostgreSQL
 
-## Overview
+Шаблон для хакатона: Mini App внутри мессенджера MAX, SvelteKit frontend, FastAPI backend и PostgreSQL.
 
-This project is a full-stack web application skeleton for building a Telegram WebApp integrated with a FastAPI backend and MongoDB database.
-It includes a SvelteKit frontend that runs as a Telegram WebApp and interacts with the backend via REST API.
+## Что было изменено относительно исходного шаблона
 
-## Features
+Исходный проект был шаблоном Telegram WebApp: SvelteKit + FastAPI + MongoDB/Beanie/Motor + RabbitMQ + JWT. Это видно в исходной конфигурации и `README`, а также в исходных auth/db-модулях. Теперь активный runtime переведён на MAX Bridge и PostgreSQL/SQLAlchemy. Старые Telegram/RabbitMQ файлы оставлены как reference, но не подключаются новым `backend/main.py`.
 
-#### Backend
+### Новый стек
 
-- **FastAPI Framework** – High-performance Python web framework.
-- **Python Telegram Bot** – Integration with the Telegram Bot API.
-- **MongoDB Database** – Stores user and session data.
-- **RabbitMQ** – Message broker for handling background tasks and managing message queues.
-- **JWT Authentication** – Used for secure user authorization.
-- **Async Webhooks** – Supports webhook integration for Telegram.
+- **MAX Mini App / MAX Bridge** — окружение приложения внутри MAX.
+- **SvelteKit + TypeScript** — UI.
+- **FastAPI** — REST API.
+- **PostgreSQL** — основная БД.
+- **SQLAlchemy 2 async + asyncpg** — доступ к PostgreSQL.
+- **MAX initData + HMAC-SHA256** — проверка личности пользователя.
+- **JWT** — сессия после первичной авторизации.
+- **Docker Compose** — локальный запуск.
 
-#### Frontend
+Официальная документация MAX описывает MAX Bridge как библиотеку, предоставляющую `window.WebApp`, включая `initData` и `initDataUnsafe`; `initData` предназначен для серверной проверки, а `initDataUnsafe` нельзя использовать как доказательство личности. urlMAX Bridge documentationhttps://dev.max.ru/docs/webapps/bridge
 
-- **SvelteKit** – Modern reactive framework for building single-page apps.
-- **Telegram WebApp SDK (@twa-dev/sdk)** – Integration with Telegram’s native UI.
-- **Dynamic Theming** – Adapts automatically to Telegram’s light/dark theme.
-- **TailwindCSS** – Utility-first CSS framework for consistent UI.
-- **REST API Integration** – Communicates with FastAPI backend via /api/\* routes.
+## Быстрый запуск
 
-## Usage
-
-1. Clone the repository:
+### 1. Переменные окружения
 
 ```bash
-git clone https://github.com/sibeardev/webapp_telegram_fastapi.git
-cd webapp_telegram_fastapi
+cp .env.example .env
 ```
 
-2. Environment Setup
+Заполни:
 
-Create `.env` in backend/ directory:
-
-```plaintext
-   MONGO_DSN=mongodb://mongo:27017
-   RABBITMQ__URL=amqp://guest:guest@rabbitmq/
-   SECRET_KEY=super_secret_key
-
-   TELEGRAM__TOKEN=You can obtain a bot token from @BotFather in Telegram.
-   TELEGRAM__SECRET="secrettelegram"
-   TELEGRAM__ADMINS=[123456789]
-
-   EXTERNAL_URL=https://example.com
+```env
+MAX_BOT_TOKEN=...
+SECRET_KEY=...
 ```
 
-> Note: For testing purposes, you can use [ngrok](https://ngrok.com/docs/getting-started/) to expose your local server to the internet. After installing ngrok, run ngrok http 8000 in a separate terminal window. Then, insert the ngrok URL generated for your server as the value for the EXTERNAL_URL variable in your .env file.
+`MAX_BOT_TOKEN` — секрет бота MAX. Никогда не коммить его в Git.
 
-3. Running with Docker
+### 2. Docker
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
-This will:
+После запуска:
 
-- Build the SvelteKit frontend (Node.js 20)
-- Build the FastAPI backend (Python 3.12)
-- Run a MongoDB instance
-- Serve the built frontend via FastAPI at /
-
-## Telegram Integration
-
-Create a Telegram Bot using @BotFather
-Set the WebApp URL in your bot configuration to your deployed app (e.g. https://yourdomain.com)
-Launch the bot and open the WebApp directly in Telegram.
-
-## Frontend Theming
-
-The application automatically applies Telegram’s dynamic theme colors using CSS variables:
-
-```css
-.tg-bg {
-  background-color: var(--tg-theme-bg-color);
-}
-.tg-text {
-  color: var(--tg-theme-text-color);
-}
-.tg-button-bg {
-  background-color: var(--tg-theme-button-color);
-}
-.tg-button-text {
-  color: var(--tg-theme-button-text-color);
-}
-...
+```text
+http://localhost:8000/          # frontend
+http://localhost:8000/health    # healthcheck
+http://localhost:8000/docs      # Swagger/OpenAPI
 ```
 
-These styles are defined in src/app.css and imported globally in +layout.svelte.
+Для реального MAX Mini App нужен публичный HTTPS URL. Официальная документация MAX указывает, что Mini Apps работают внутри чат-ботов MAX и приложение должно быть размещено по HTTPS. urlMAX Mini Apps introductionhttps://dev.max.ru/docs/webapps/introduction
+
+## Как работает авторизация
+
+### Шаг 1 — MAX открывает frontend
+
+`frontend/src/app.html` подключает MAX Bridge:
+
+```html
+<script src="https://st.max.ru/js/max-web-app.js"></script>
+```
+
+После этого доступен:
+
+```js
+window.WebApp
+```
+
+Frontend получает:
+
+```js
+WebApp.initData
+```
+
+### Шаг 2 — JS отправляет initData в FastAPI
+
+```ts
+await fetch("/api/user/auth", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ initData: WebApp.initData }),
+});
+```
+
+### Шаг 3 — FastAPI проверяет подпись
+
+Backend не доверяет `user.id`, который просто прислал браузер. Он получает подписанную строку `initData` и проверяет HMAC.
+
+### Шаг 4 — PostgreSQL
+
+После успешной проверки пользователь создаётся или обновляется в таблице `users`.
+
+### Шаг 5 — JWT
+
+Backend выдаёт access token. Все следующие защищённые запросы используют:
+
+```http
+Authorization: Bearer <token>
+```
+
+Полное объяснение находится в [`docs/BACKEND_GUIDE.md`](docs/BACKEND_GUIDE.md).
+
+## API
+
+### `POST /api/user/auth`
+
+Body:
+
+```json
+{
+  "initData": "auth_date=...&user=...&hash=..."
+}
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer"
+}
+```
+
+### `GET /api/user/me`
+
+Header:
+
+```http
+Authorization: Bearer eyJ...
+```
+
+Response:
+
+```json
+{
+  "id": 123,
+  "username": "example",
+  "first_name": "Ivan",
+  "last_name": "Ivanov",
+  "language_code": "ru",
+  "photo_url": "https://...",
+  "is_staff": false
+}
+```
+
+### `GET /health`
+
+```json
+{"status":"ok"}
+```
+
+## Как думать о FastAPI backend
+
+Самая важная схема:
+
+```text
+JavaScript
+   │ fetch()
+   ▼
+HTTP request
+   │
+   ▼
+FastAPI router
+   │
+   ├── Pydantic validation
+   ├── Depends(auth)
+   └── endpoint
+          │
+          ▼
+      SQLAlchemy
+          │
+          ▼
+      PostgreSQL
+          │
+          ▼
+      Python object
+          │
+          ▼
+      JSON response
+          │
+          ▼
+      JavaScript
+```
+
+Если ты понял эту цепочку, то уже понимаешь основу большинства современных web backend'ов.
+
+## Где писать свою бизнес-логику
+
+Не складывай всё в `main.py`.
+
+Рекомендуемая структура для дальнейшей разработки:
+
+```text
+backend/
+├── app/
+│   ├── api/routes/        # HTTP endpoints
+│   ├── schemas/            # Pydantic request/response DTO
+│   └── services/           # бизнес-логика
+├── bot/models.py           # SQLAlchemy models
+└── core/
+    ├── db.py
+    ├── security.py
+    └── env.py
+```
+
+Например:
+
+```text
+POST /api/orders
+       ↓
+orders.py
+       ↓
+OrderService.create_order()
+       ↓
+SQLAlchemy
+       ↓
+PostgreSQL
+```
+
+Так API остаётся тонким, а бизнес-логика не привязывается к HTTP.
+
+## PostgreSQL vs MongoDB
+
+Для хакатонного приложения я выбрал PostgreSQL.
+
+Причины:
+
+- пользователи, заказы, задачи, заявки и связи между сущностями естественно описываются таблицами;
+- foreign keys защищают целостность данных;
+- транзакции удобны для операций вида «создать заказ + записать событие»;
+- SQL проще анализировать и отлаживать;
+- PostgreSQL отлично подходит и для маленького MVP, и для дальнейшего роста.
+
+MongoDB имеет смысл, если данные действительно документные и схема постоянно меняется. Для обычного Mini App backend PostgreSQL здесь практичнее.
+
+## Что пока сознательно упрощено
+
+1. Таблицы создаются через `Base.metadata.create_all()` при старте. Для production нужен Alembic.
+2. JWT хранится в `localStorage` для простоты демо. Для более строгого production-сценария можно использовать возможности `SecureStorage` MAX Bridge.
+3. Нет rate limiting.
+4. Нет полноценного слоя service/repository — для хакатонного MVP это избыточно, его стоит добавить при росте логики.
+5. Старые Telegram/RabbitMQ файлы не удалены, чтобы можно было сравнить архитектуры и миграцию.
+
+## Важная безопасность
+
+Никогда не делай так:
+
+```ts
+fetch("/api/user/me?user_id=" + user.id)
+```
+
+и не доверяй `user_id` из браузера.
+
+Правильная модель:
+
+```text
+MAX → signed initData → backend validates signature
+                              ↓
+                         trusted user id
+                              ↓
+                         PostgreSQL
+```
+
+Также никогда не публикуй `MAX_BOT_TOKEN` или `SECRET_KEY` в GitHub.
+
+## Следующий шаг для хакатона
+
+Поверх этого каркаса можно сразу добавлять доменную модель проекта:
+
+```text
+User
+ ├── Profile
+ ├── Tasks / Orders
+ ├── Actions
+ └── Notifications
+```
+
+Для каждой сущности делаем:
+
+```text
+SQLAlchemy model
+      ↓
+Pydantic schemas
+      ↓
+FastAPI router
+      ↓
+service/business logic
+      ↓
+frontend fetch()
+      ↓
+Svelte UI
+```
+
+Именно этот цикл стоит освоить: после него добавление новых экранов и функций превращается в повторение одной и той же понятной схемы.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT.
