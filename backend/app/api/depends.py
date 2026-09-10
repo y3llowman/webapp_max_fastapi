@@ -1,24 +1,22 @@
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from fastapi import Depends, Header, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.models import User
-from core.config import ALGORITHM, SECRET_KEY
-
-security = HTTPBearer()
+from core.db import get_db
+from core.security import decode_access_token
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(
-            token, SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
-        )
-        user = await User.get(payload.get("sub"))
-        if not user:
-            raise HTTPException(status_code=401)
-        return user
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    authorization: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+
+    user_id = decode_access_token(authorization.removeprefix("Bearer ").strip())
+    result = await db.execute(select(User).where(User.max_user_id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user

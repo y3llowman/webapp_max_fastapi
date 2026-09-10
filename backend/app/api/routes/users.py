@@ -1,36 +1,53 @@
-import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.depends import get_current_user
 from bot.models import User
-from core.config import TELEGRAM_TOKEN
-from core.security import create_access_token, validate_telegram_init_data
+from core.config import MAX_BOT_TOKEN
+from core.db import get_db
+from core.security import create_access_token, validate_max_init_data
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(tags=["user"], prefix="/user")
+router = APIRouter(tags=["auth"], prefix="/user")
 
 
-@router.get("/me")
-async def get_user(user: User = Depends(get_current_user)):
-    return user
+class AuthRequest(BaseModel):
+    initData: str
 
 
 @router.post("/auth")
-async def webapp_auth(request: Request):
-    data = await request.json()
-    init_data = data.get("initData")
-    init_data_unsafe = data.get("initDataUnsafe")
+async def webapp_auth(payload: AuthRequest, db: AsyncSession = Depends(get_db)):
+    user_data = validate_max_init_data(payload.initData)
+    max_user_id = int(user_data["id"])
 
-    if not init_data or not init_data_unsafe:
-        raise HTTPException(status_code=400, detail="Invalid data")
+    result = await db.execute(select(User).where(User.max_user_id == max_user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        user = User(max_user_id=max_user_id)
+        db.add(user)
 
-    if not validate_telegram_init_data(init_data, TELEGRAM_TOKEN.get_secret_value()):
-        raise HTTPException(status_code=403, detail="Invalid Telegram signature")
+    user.username = user_data.get("username")
+    user.first_name = user_data.get("first_name")
+    user.last_name = user_data.get("last_name")
+    user.language_code = user_data.get("language_code")
+    user.photo_url = user_data.get("photo_url")
+    user.last_login = datetime.now(timezone.utc)
+    await db.commit()
 
-    user_data = init_data_unsafe.get("user")
-    user = await User.update_or_create(user_data)
-    token = create_access_token(user.id)  # type: ignore
+    return {"access_token": create_access_token(max_user_id), "token_type": "bearer"}
 
-    return token
+
+@router.get("/me")
+async def get_me(user: User = Depends(get_current_user)):
+    return {
+        "id": user.max_user_id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "language_code": user.language_code,
+        "photo_url": user.photo_url,
+        "is_staff": user.is_staff,
+    }

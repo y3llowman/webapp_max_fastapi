@@ -1,58 +1,38 @@
 services:
-  mongo:
-    image: mongo
-    container_name: mongodb
+  postgres:
+    image: postgres:17-alpine
+    container_name: max_postgres
+    environment:
+      POSTGRES_DB: maxapp
+      POSTGRES_USER: max
+      POSTGRES_PASSWORD: max
     ports:
-      - "27017:27017"
+      - "5432:5432"
     volumes:
-      - mongo_data:/data/db
-    restart: always
-
-  rabbit:
-    container_name: rabbitmq
-    image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    volumes:
-      - rabbit_data:/var/lib/rabbitmq
-    restart: always
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U max -d maxapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
-    image: telegram_miniapp
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: backend
-    command: uv run python3 main.py
+    container_name: max_backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app/backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://max:max@postgres:5432/maxapp
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-true}
+      MAX_INIT_DATA_MAX_AGE: ${MAX_INIT_DATA_MAX_AGE:-86400}
     depends_on:
-      - mongo
-    env_file:
-      - .env
-    restart: always
-
-  worker:
-    image: telegram_miniapp
-    build:
-        context: .
-        dockerfile: Dockerfile
-    container_name: worker
-    command: uv run python3 -m worker
-    env_file:
-      - .env
-    volumes:
-      - ./backend:/app/backend
-    depends_on:
-      - rabbit
-      - backend
-    restart: always
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
-  mongo_data:
-    driver: local
-  rabbit_data:
-    driver: local
+  postgres_data:

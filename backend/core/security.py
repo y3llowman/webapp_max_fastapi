@@ -1,38 +1,63 @@
 import hashlib
 import hmac
-import logging
-from datetime import datetime, timedelta
-from typing import Optional
+import json
+import time
 from urllib.parse import parse_qsl
 
-from jose import jwt
+from fastapi import HTTPException, status
+from jose import JWTError, jwt
 
-from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
+from core.config import MAX_BOT_TOKEN, MAX_INIT_DATA_MAX_AGE, SECRET_KEY
 
-logger = logging.getLogger(__name__)
-
-
-def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None):
-    expire = datetime.now() + (
-        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode = {"sub": str(user_id), "exp": expire}
-    return jwt.encode(to_encode, SECRET_KEY.get_secret_value(), algorithm=ALGORITHM)
+ALGORITHM = "HS256"
 
 
-def validate_telegram_init_data(init_data: str, bot_token: str) -> bool:
-    vals = dict(parse_qsl(init_data, strict_parsing=True))
-    check_hash = vals.pop("hash", None)
-    if not check_hash:
-        return False
-    data_check_string = "\n".join(
-        f"{key}={value}" for key, value in sorted(vals.items())
-    )
+def validate_max_init_data(init_data: str) -> dict:
+    """Validate MAX Mini App initData and return the trusted user object."""
+    raw_pairs = parse_qsl(init_data, keep_blank_values=True)
+    if not raw_pairs:
+        raise HTTPException(status_code=401, detail="Empty initData")
+
+    # MAX requires parameters to be unique; accepting duplicates can create
+    # ambiguities between what is signed and what the application reads.
+    keys = [key for key, _ in raw_pairs]
+    if len(keys) != len(set(keys)) or keys.count("hash") != 1:
+        raise HTTPException(status_code=401, detail="Invalid initData parameters")
+
+    pairs = dict(raw_pairs)
+    received_hash = pairs.pop("hash")
+
+    try:
+        auth_date = int(pairs["auth_date"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Invalid auth_date") from exc
+
+    age = time.time() - auth_date
+    if age < -60 or age > MAX_INIT_DATA_MAX_AGE:
+        raise HTTPException(status_code=401, detail="Expired initData")
+
+    launch_params = "\n".join(f"{key}={value}" for key, value in sorted(pairs.items()))
     secret_key = hmac.new(
-        "WebAppData".encode(), bot_token.encode(), hashlib.sha256
+        b"WebAppData", MAX_BOT_TOKEN.get_secret_value().encode(), hashlib.sha256
     ).digest()
-    hmac_hash = hmac.new(
-        secret_key, data_check_string.encode(), hashlib.sha256
-    ).hexdigest()
+    calculated = hmac.new(secret_key, launch_params.encode(), hashlib.sha256).hexdigest()
 
-    return hmac_hash == check_hash
+    if not hmac.compare_digest(calculated, received_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid initData signature")
+
+    try:
+        return json.loads(pairs["user"])
+    except (KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid initData user") from exc
+
+
+def create_access_token(user_id: int) -> str:
+    return jwt.encode({"sub": str(user_id)}, SECRET_KEY.get_secret_value(), algorithm=ALGORITHM)
+
+
+def decode_access_token(token: str) -> int:
+    try:
+        payload = jwt.decode(token, SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM])
+        return int(payload["sub"])
+    except (JWTError, KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Invalid access token") from exc
