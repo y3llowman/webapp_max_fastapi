@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { authorizeUser, getUser } from "$lib/services/api";
+  import { authorizeUser, getUser } from "../services/api";
   import { getMaxWebApp } from "$lib/max";
 
   let user: any = null;
