@@ -1,37 +1,23 @@
-from functools import cached_property
-
-from pydantic import AnyHttpUrl, BaseModel, MongoDsn, SecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class TelegramSettings(BaseModel):
-    TOKEN: SecretStr
-    ADMINS: list[int]
-    SECRET: SecretStr
-
-
-class RabbitMQSettings(BaseModel):
-    URL: str
-
-
 class EnvSettings(BaseSettings):
-    MONGO_DSN: MongoDsn
-    RABBITMQ: RabbitMQSettings
-    TELEGRAM: TelegramSettings
-    EXTERNAL_URL: AnyHttpUrl
-    PORT: int = 8000
-    HOST: str = "0.0.0.0"
-    DEBUG: bool = True
-    PROJECT_NAME: str = "fridrik"
+    DATABASE_URL: str = "postgresql+asyncpg://max:max@postgres:5432/maxapp"
+    MAX_BOT_TOKEN: SecretStr
     SECRET_KEY: SecretStr
+    MAX_INIT_DATA_MAX_AGE: int = 86400
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    DEBUG: bool = True
+    PROJECT_NAME: str = "max-miniapp"
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="__",
         case_sensitive=False,
-        validate_default=True,
-        ignored_types=(cached_property,),
-        extra="allow",
-        use_attribute_docstrings=True,
+        extra="ignore",
     )
+
+
+ENV = EnvSettings()
