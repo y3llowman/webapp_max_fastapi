@@ -1,60 +1,24 @@
 from datetime import datetime
-from typing import Optional
 
-from beanie import Document
+from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
-class User(Document):
-    user_id: int
-    username: Optional[str]
-    first_name: Optional[str]
-    last_name: Optional[str]
-    is_active: bool = True
-    language_code: Optional[str]
-    is_premium: bool = False
-    is_staff: bool = False
-    allows_write_to_pm: bool = True
-    photo_url: Optional[str]
-    date_joined: datetime = datetime.now()
-    last_login: Optional[datetime] = None
-    updated_at: datetime = datetime.now()
-    metadata: dict = {}
+class Base(DeclarativeBase):
+    pass
 
-    class Settings:
-        name = "users"
 
-    def __repr__(self):
-        return f"<User {self.user_id} @{self.username}>"
+class User(Base):
+    __tablename__ = "users"
 
-    @classmethod
-    async def update_or_create(cls, user_data: dict) -> "User":
-        user_id = user_data.get("id")
-        if user_id is None:
-            raise ValueError("user_data must contain 'id' field")
-
-        user = await cls.find_one(cls.user_id == user_id)
-
-        if user:
-            for field, value in user_data.items():
-                if field == "id":
-                    continue
-                if hasattr(user, field):
-                    setattr(user, field, value)
-            await user.save()
-
-        else:
-            user = cls(
-                user_id=user_id,
-                username=user_data.get("username"),
-                first_name=user_data.get("first_name"),
-                last_name=user_data.get("last_name"),
-                is_active=True,
-                language_code=user_data.get("language_code"),
-                is_premium=user_data.get("is_premium", False),
-                allows_write_to_pm=user_data.get("allows_write_to_pm", True),
-                photo_url=user_data.get("photo_url"),
-                last_login=datetime.now(),
-            )
-            await user.insert()
-
-        return user
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    max_user_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    language_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_staff: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
