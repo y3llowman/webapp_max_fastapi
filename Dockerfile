@@ -1,7 +1,7 @@
 FROM node:20 AS frontend-builder
 WORKDIR /app
-COPY frontend/package*.json ./
-RUN npm ci
+COPY frontend/package.json ./
+RUN npm install
 COPY frontend/ ./
 RUN npm run prepare && npm run build
 
