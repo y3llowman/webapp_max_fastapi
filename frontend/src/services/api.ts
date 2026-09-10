@@ -1,61 +1,32 @@
 import { goto } from "$app/navigation";
 
-export async function authorizeUser(
-  initData: string,
-  initDataUnsafe: Record<string, any>
-) {
+export async function authorizeUser(initData: string) {
   const res = await fetch("/api/user/auth", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      initData: initData,
-      initDataUnsafe: initDataUnsafe,
-    }),
+    body: JSON.stringify({ initData }),
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data?.detail || "Auth failed");
-  }
 
-  return await res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.detail || "Ошибка авторизации");
+  localStorage.setItem("max_access_token", data.access_token);
+  return data;
 }
 
-export async function getUser(token: string) {
+export async function getUser() {
+  const token = localStorage.getItem("max_access_token");
+  if (!token) {
+    goto("/auth");
+    return null;
+  }
+
   const res = await fetch("/api/user/me", {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    localStorage.removeItem("token");
+    localStorage.removeItem("max_access_token");
     goto("/auth");
-    return;
+    return null;
   }
-
-  return await res.json();
-}
-
-export async function sendMailing(title: string, text: string) {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      localStorage.removeItem("token");
-      goto("/auth");
-      return;
-    }
-
-    const response = await fetch("/api/mailing/bulk", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ title, text }),
-    });
-
-    const result = await response.json();
-    return result.status === "ok"
-      ? "Message sent"
-      : result.detail || "Mailing error";
-  } catch (err) {
-    return "Server error";
-  }
+  return res.json();
 }
