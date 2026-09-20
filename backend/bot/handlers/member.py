@@ -1,7 +1,7 @@
 from telegram import Update, ChatMemberUpdated
 from telegram.ext import ContextTypes, ChatMemberHandler
 import logging
-from bot.models import User
+from databases.users_db import User
 
 logger = logging.getLogger(__name__)
 

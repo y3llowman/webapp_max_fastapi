@@ -5,8 +5,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppI
 from telegram.constants import ParseMode
 from telegram.ext import CommandHandler, ContextTypes, filters
 
-from bot.models import User
 from core.config import EXTERNAL_URL
+from databases.users_db import User
 
 logger = logging.getLogger(__name__)
 

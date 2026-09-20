@@ -52,6 +52,61 @@ http://localhost:8000/docs      # Swagger/OpenAPI
 
 Для реального MAX Mini App нужен публичный HTTPS URL. Официальная документация MAX указывает, что Mini Apps работают внутри чат-ботов MAX и приложение должно быть размещено по HTTPS. urlMAX Mini Apps introductionhttps://dev.max.ru/docs/webapps/introduction
 
+## Как работает Docker в этом проекте и зачем он нужен
+
+### Зачем он вообще нужен
+
+Без Docker, чтобы запустить проект, пришлось бы вручную на каждой машине:
+
+- поставить Python нужной версии + все pip-зависимости;
+- поставить Node.js нужной версии и собрать frontend;
+- поставить и настроить PostgreSQL, создать базу и пользователя;
+- следить, чтобы версии всего этого совпадали у всех в команде и на сервере ("у меня локально работает" — классическая проблема).
+
+Docker решает это так: всё окружение (ОС-слой, Python, зависимости, собранный frontend) один раз описывается в виде инструкции (`Dockerfile`) и упаковывается в **образ** (image) — неизменяемый архив со всем нужным внутри. Из образа поднимается **контейнер** — реально работающий изолированный процесс со своей файловой системой, но использующий ядро хост-ОС (поэтому легче полноценной виртуальной машины). Один и тот же образ запускается одинаково у тебя, у товарища по команде и на проде.
+
+### Из чего состоит Docker-часть проекта
+
+```text
+Dockerfile           # инструкция "как собрать образ backend"
+docker-compose.yml   # инструкция "какие контейнеры поднять и как их связать"
+.dockerignore         # что НЕ копировать внутрь образа (node_modules, .git, .venv...)
+```
+
+**`Dockerfile`** собирает образ в два этапа (multi-stage build):
+
+```text
+Этап 1 (node:20)          Этап 2 (python:3.12-slim)
+────────────────          ──────────────────────────
+npm install                pip install зависимости (через uv)
+npm run build         →    COPY backend/
+(получили статику          COPY собранный frontend из этапа 1
+ SvelteKit)                CMD python backend/main.py
+```
+
+Первый этап нужен только чтобы собрать frontend в статические файлы — сам Node.js в финальном образе не остаётся, там только Python + собранная статика. Это уменьшает итоговый образ.
+
+**`docker-compose.yml`** описывает не один контейнер, а систему из двух сервисов:
+
+```text
+┌──────────────────────┐        ┌────────────────────────┐
+│  backend (FastAPI)    │──TCP──▶│  postgres (PostgreSQL)  │
+│  порт 8000 наружу      │        │  порт 5432 наружу        │
+└──────────────────────┘        └────────────────────────┘
+```
+
+Контейнеры видят друг друга по имени сервиса как по hostname — поэтому в `DATABASE_URL` внутри `docker-compose.yml` указан хост `postgres`, а не `localhost`: `postgresql+asyncpg://max:max@postgres:5432/maxapp`. `depends_on: condition: service_healthy` заставляет backend ждать, пока Postgres не пройдёт `healthcheck` (`pg_isready`) — иначе backend упадёт при старте, пытаясь подключиться к ещё не готовой базе. `volumes: postgres_data` хранит данные Postgres отдельно от контейнера, поэтому `docker compose down` (без `-v`) их не стирает.
+
+### Команды
+
+```bash
+docker compose up --build      # собрать образы и запустить оба контейнера
+docker compose up -d           # то же самое, но в фоне
+docker compose logs -f backend # смотреть логи backend в реальном времени
+docker compose down            # остановить и удалить контейнеры (данные Postgres останутся в volume)
+docker compose down -v         # то же самое, но и данные Postgres тоже удалить
+```
+
 ## Как работает авторизация
 
 ### Шаг 1 — MAX открывает frontend
@@ -186,24 +241,36 @@ FastAPI router
 
 Если ты понял эту цепочку, то уже понимаешь основу большинства современных web backend'ов.
 
-## Где писать свою бизнес-логику
-
-Не складывай всё в `main.py`.
-
-Рекомендуемая структура для дальнейшей разработки:
+## Текущая структура backend
 
 ```text
 backend/
+├── main.py                    # FastAPI app, entrypoint контейнера
 ├── app/
-│   ├── api/routes/        # HTTP endpoints
-│   ├── schemas/            # Pydantic request/response DTO
-│   └── services/           # бизнес-логика
-├── bot/models.py           # SQLAlchemy models
+│   ├── api/routes/            # HTTP endpoints (users, mailing, telegram)
+│   └── api/depends.py         # FastAPI-зависимости (auth и т.д.)
+├── databases/                 # всё, что касается БД
+│   ├── engine_start.py        # async engine + SessionLocal + get_db
+│   ├── users_db.py            # Base (DeclarativeBase) + модель User, таблица `users`
+│   └── businesses_db.py       # модель Business, таблица `businesses`
+├── data_fetching/
+│   └── rmsp_client.py         # клиент реестра МСП (rmsp.nalog.ru), поиск компании по ИНН
+├── bot/                       # MAX/Telegram-хендлеры (частично legacy, см. ниже)
 └── core/
-    ├── db.py
+    ├── config.py
     ├── security.py
     └── env.py
 ```
+
+Таблицы `users` и `businesses` живут на одном `Base.metadata` в `databases/users_db.py`, поэтому `databases/__init__.py` создаёт их обе одним вызовом `init_db()` при старте приложения (`Base.metadata.create_all`).
+
+### Схема данных
+
+- **`users`** — участник MAX/Telegram: `max_user_id`, `username`, `first_name`, `last_name`, `photo_url`, а также необязательный `inn` (ИНН привязанного бизнеса).
+- **`businesses`** — данные компании из реестра МСП, ключ — `inn` (`ForeignKey("users.inn")`): `name`, `subject_type` (`UL`/`IP`), `category`, `ogrn`, `main_activity_code/name` (ОКВЭД), `region_code`, даты регистрации/исключения из реестра, контакты, флаги (`has_licenses`, `is_hitech`, `is_partnership`, `is_social`).
+- Заполняется через `data_fetching/rmsp_client.py::fetch_by_inn(inn)` — POST-запрос к недокументированному эндпоинту `rmsp.nalog.ru/search-proc.json`. Пока это отдельный скрипт, не подключённый как FastAPI-роут.
+
+Дальше по мере роста доменной модели сюда стоит добавить `app/schemas/` (Pydantic DTO) и `app/services/` (бизнес-логика), чтобы не разрастался `main.py`/роуты.
 
 Например:
 

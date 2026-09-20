@@ -4,7 +4,7 @@ import json
 
 from core.config import RABBITMQ_URL
 from app.api.depends import get_current_user
-from bot.models import User
+from databases.users_db import User
 
 router = APIRouter(prefix="/mailing", tags=["mailing"])
 

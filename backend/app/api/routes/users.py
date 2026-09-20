@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.depends import get_current_user
-from bot.models import User
 from core.config import MAX_BOT_TOKEN
-from core.db import get_db
+from databases import get_db
+from databases.users_db import User
 from core.security import create_access_token, validate_max_init_data
 
 router = APIRouter(tags=["auth"], prefix="/user")

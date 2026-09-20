@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.main import api_router
 from core.config import DEBUG, FRONTEND_DIR, HOST, PORT
-from core.db import init_db
+from databases import init_db
 
 app = FastAPI(title="MAX Mini App API", debug=DEBUG)
 app.include_router(api_router)

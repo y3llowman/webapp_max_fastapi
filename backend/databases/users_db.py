@@ -1,30 +1,25 @@
-from collections.abc import AsyncGenerator
+from datetime import datetime
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import Table, Column, Integer, String
-
-from bot.models import Base
-from core.env import ENV
-from sqlalchemy import MetaData
-
-meta = MetaData()
-
-table = Table(
-    "user",
-    meta,
-    Column("id", Integer, primary_key=True),
-    Column("name", String(30)),
-    Column("fullname", String),
-)
-
-engine = create_async_engine(ENV.DATABASE_URL, pool_pre_ping=True)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
-async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(meta.create_all)
+from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with SessionLocal() as session:
-        yield session
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    max_user_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    language_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    inn: Mapped[str | None] = mapped_column(String(12), unique=True, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_staff: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

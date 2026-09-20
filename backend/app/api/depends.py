@@ -2,8 +2,8 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.models import User
-from core.db import get_db
+from databases import get_db
+from databases.users_db import User
 from core.security import decode_access_token
 
 
