@@ -11,7 +11,6 @@ from core.config import MAX_BOT_TOKEN, MAX_INIT_DATA_MAX_AGE, SECRET_KEY
 
 ALGORITHM = "HS256"
 
-
 def validate_max_init_data(init_data: str) -> dict:
     """Validate MAX Mini App initData and return the trusted user object."""
     raw_pairs = parse_qsl(init_data, keep_blank_values=True)

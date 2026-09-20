@@ -1,7 +1,6 @@
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class EnvSettings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://max:max@postgres:5432/maxapp"
     MAX_BOT_TOKEN: SecretStr

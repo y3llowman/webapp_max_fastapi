@@ -1,6 +1,6 @@
 import logging
 from telegram import error as tg_error
-from bot.dispatcher import TELEGRAM_BOT
+from backend.bot.main import TELEGRAM_BOT
 
 logger = logging.getLogger(__name__)
 
