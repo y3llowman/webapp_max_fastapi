@@ -1,0 +1,96 @@
+"""Новые таблицы радара. Base — ваш общий DeclarativeBase из проекта."""
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, func, text)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base  # ← поправьте путь под проект
+
+
+class RegistrySnapshot(Base):
+    """Сырые снимки реестров: diff считаем между двумя последними по (inn, source)."""
+    __tablename__ = "registry_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    inn: Mapped[str] = mapped_column(String(12), index=True)
+    source: Mapped[str] = mapped_column(String(8))             # 'egrul' | 'msp'
+    data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # None = «не найдено»
+    data_hash: Mapped[str] = mapped_column(String(40))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (Index("ix_snap_inn_src_time", "inn", "source", "fetched_at"),)
+
+
+class BusinessProfile(Base):
+    """То, чего нет в реестрах: спрашиваем в онбординге (2 вопроса кнопками)."""
+    __tablename__ = "business_profiles"
+    inn: Mapped[str] = mapped_column(String(12), ForeignKey("businesses.inn"), primary_key=True)
+    tax_regime: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    has_employees: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    flags: Mapped[dict] = mapped_column(JSONB, default=dict)       # {"works_with_selfemployed": true, ...}
+    bank_biks: Mapped[list] = mapped_column(JSONB, default=list)   # для проверки блокировок в «БАНКИНФОРМ»
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class FeedItemRow(Base):
+    """Лента: законы / проекты / меры поддержки. Акты без сужающих признаков или без даты ждут модерации is_staff."""
+    __tablename__ = "feed_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(80), unique=True)
+    kind: Mapped[str] = mapped_column(String(10))                  # law | draft | support
+    status: Mapped[str] = mapped_column(String(16), default="pending_review")  # → approved | rejected
+    title: Mapped[str] = mapped_column(String(300))
+    summary: Mapped[str] = mapped_column(Text)
+    actions: Mapped[list] = mapped_column(JSONB, default=list)
+    act: Mapped[str] = mapped_column(String(500))
+    audience: Mapped[dict] = mapped_column(JSONB)                   # сериализованный Audience
+    evidence: Mapped[list] = mapped_column(JSONB, default=list)     # цитаты из текста акта, найденные правилами
+    effective_from: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_url: Mapped[str] = mapped_column(String(1000))
+    official_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    eo_number: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)  # pravo.gov.ru
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RadarEvent(Base):
+    __tablename__ = "radar_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    inn: Mapped[str] = mapped_column(String(12), index=True)
+    type: Mapped[str] = mapped_column(String(48))
+    kind: Mapped[str] = mapped_column(String(10))               # 'once' | 'condition'
+    key: Mapped[str] = mapped_column(String(200))
+    source: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    due: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open|done|snoozed|muted
+    snoozed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        # разовое событие уникально навсегда
+        Index("uq_event_once", "key", unique=True, postgresql_where=text("kind = 'once'")),
+        # состояние: одно открытое на ключ; после resolve может «открыться» заново
+        Index("uq_event_condition_open", "key", unique=True,
+              postgresql_where=text("kind = 'condition' AND resolved_at IS NULL")),
+    )
+
+
+class Notification(Base):
+    """Outbox: планировщик кладёт сюда, диспетчер отправляет. dedup_key = f'{event_id}:{label}'."""
+    __tablename__ = "notifications"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("radar_events.id"), nullable=True)
+    template: Mapped[str] = mapped_column(String(48))
+    label: Mapped[str] = mapped_column(String(16))              # alert | T-3 | T0 | T+1 | repeat | digest
+    dedup_key: Mapped[str] = mapped_column(String(200), unique=True)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending|sent|failed|cancelled
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    max_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
