@@ -23,9 +23,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from ..data_fetching import egrul_client, rmsp_client
-from . import detectors as det
-from .deadlines import Profile, materialize as materialize_deadlines
+from data_fetching import egrul_client, rmsp_client
+from radar import detectors as det
 from .planner import plan, tz_for
 
 MSK = "Europe/Moscow"
@@ -43,9 +42,9 @@ async def fetch_msp(inn: str) -> dict | None:
 
 
 async def save_snapshot(inn, source, data) -> dict | None: ...  # вернуть ПРЕДЫДУЩИЙ снимок
-async def upsert_events(inn, source, drafts) -> list: ...  # см. правила ключей в models.py
-async def open_condition_keys(inn, source) -> dict[str, str]: ...  # {key: type} открытых состояний
-async def close_conditions(inn, keys) -> list: ...         # resolved_at=now, вернуть закрытые
+async def upsert_events(inn, source, drafts) -> list: return []  # см. правила ключей в models.py
+async def open_condition_keys(inn, source) -> dict[str, str]: return {}  # {key: type} открытых состояний
+async def close_conditions(inn, keys) -> list: return []   # resolved_at=now, вернуть закрытые
 async def region_of(inn: str) -> str | None: ...           # businesses.region_code
 async def schedule(event, slots) -> None: ...              # INSERT notifications ON CONFLICT DO NOTHING
 

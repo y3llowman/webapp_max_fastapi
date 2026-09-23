@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from telegram import Update
 from telegram.error import TelegramError
 
-from backend.bot.main import TELEGRAM_BOT
+from backend.bot.main_longpooling import TELEGRAM_BOT
 from core.config import TELEGRAM_SECRET
 
 logger = logging.getLogger(__name__)
