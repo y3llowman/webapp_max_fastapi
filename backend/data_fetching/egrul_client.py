@@ -28,6 +28,7 @@ here.
 from __future__ import annotations
 
 import time
+import asyncio
 from dataclasses import dataclass, field
 
 import pymupdf
@@ -84,7 +85,7 @@ class EgrulSearchRecord:
     director_name: str | None
 
     @classmethod
-    def from_api(cls, row: dict) -> "EgrulSearchRecord":
+    def  from_api(cls, row: dict) -> "EgrulSearchRecord":
         position, _, name = (row.get("g") or "").partition(": ")
         return cls(
             full_name=row["n"],
@@ -102,7 +103,7 @@ class EgrulSearchRecord:
         )
 
 
-def _request_json(session: requests.Session, method: str, url: str, **kwargs) -> dict:
+def  _request_json(session: requests.Session, method: str, url: str, **kwargs) -> dict:
     resp = session.request(method, url, timeout=15, **kwargs)
     print(resp)
     resp.raise_for_status()
@@ -112,7 +113,7 @@ def _request_json(session: requests.Session, method: str, url: str, **kwargs) ->
     return data
 
 
-def _search_token(session: requests.Session, query: str, region: str = "", page: str = "") -> str:
+def  _search_token(session: requests.Session, query: str, region: str = "", page: str = "") -> str:
     data = _request_json(
         session,
         "POST",
@@ -129,7 +130,7 @@ def _search_token(session: requests.Session, query: str, region: str = "", page:
     return data["t"]
 
 
-def _search_rows(session: requests.Session, token: str) -> list[dict]:
+def  _search_rows(session: requests.Session, token: str) -> list[dict]:
     url = f"{BASE_URL}search-result/{token}"
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     while True:
@@ -143,7 +144,7 @@ def _search_rows(session: requests.Session, token: str) -> list[dict]:
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
-def search(query: str, region: str = "") -> list[EgrulSearchRecord]:
+def  search(query: str, region: str = "") -> list[EgrulSearchRecord]:
     """Search egrul.nalog.ru by INN, OGRN or company name.
 
     Returns lightweight metadata straight from the search JSON - no PDF is
@@ -157,7 +158,7 @@ def search(query: str, region: str = "") -> list[EgrulSearchRecord]:
     return [EgrulSearchRecord.from_api(row) for row in rows if row.get("i")]
 
 
-def fetch_by_inn(inn: str) -> EgrulSearchRecord | None:
+def  fetch_by_inn(inn: str) -> EgrulSearchRecord | None:
     """Look up a single organization by INN. Returns None if not found."""
     results = search(inn)
     return next((r for r in results if r.inn == inn), None)
@@ -219,14 +220,14 @@ class EgrulExtract:
     notes: list[str] = field(default_factory=list)  # any "Дополнительные сведения" rows, e.g. reliability flags
 
 
-def _request_pdf_token(session: requests.Session, row_token: str) -> str:
+def  _request_pdf_token(session: requests.Session, row_token: str) -> str:
     data = _request_json(
         session, "GET", f"{BASE_URL}vyp-request/{row_token}", headers=HEADERS, params={"r": ""}
     )
     return data["t"]
 
 
-def _wait_pdf_ready(session: requests.Session, token: str) -> None:
+def  _wait_pdf_ready(session: requests.Session, token: str) -> None:
     url = f"{BASE_URL}vyp-status/{token}"
     deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     while True:
@@ -240,13 +241,13 @@ def _wait_pdf_ready(session: requests.Session, token: str) -> None:
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
-def _download_pdf(session: requests.Session, token: str) -> bytes:
+def  _download_pdf(session: requests.Session, token: str) -> bytes:
     resp = session.get(f"{BASE_URL}vyp-download/{token}", headers=HEADERS, timeout=30)
     resp.raise_for_status()
     return resp.content
 
 
-def download_extract_pdf(inn: str) -> bytes | None:
+def  download_extract_pdf(inn: str) -> bytes | None:
     """Download the official ЕГРЮЛ extract PDF for a company by INN.
 
     Returns None if the INN is not found. Reproduces the request flow the
@@ -264,27 +265,27 @@ def download_extract_pdf(inn: str) -> bytes | None:
     return _download_pdf(session, pdf_token)
 
 
-def _clean(value: str | None) -> str | None:
+def  _clean(value: str | None) -> str | None:
     if value is None:
         return None
     value = " ".join(value.split())
     return value or None
 
 
-def _lines(value: str | None) -> list[str]:
+def  _lines(value: str | None) -> list[str]:
     if not value:
         return []
     return [line.strip() for line in value.split("\n") if line.strip()]
 
 
-def _to_int(value: str | None) -> int | None:
+def  _to_int(value: str | None) -> int | None:
     if not value:
         return None
     digits = value.replace(" ", "").replace("\xa0", "")
     return int(digits) if digits.isdigit() else None
 
 
-def _to_float(value: str | None) -> float | None:
+def  _to_float(value: str | None) -> float | None:
     if not value:
         return None
     try:
@@ -293,7 +294,7 @@ def _to_float(value: str | None) -> float | None:
         return None
 
 
-def _table_rows(doc: pymupdf.Document):
+def  _table_rows(doc: pymupdf.Document):
     """Yields [number, label, value] rows from every 3-column table in the PDF.
 
     The two single-row "boxed digit" tables at the top of page 1 (ОГРН and
@@ -308,7 +309,7 @@ def _table_rows(doc: pymupdf.Document):
                 yield from table.extract()
 
 
-def _fill_person(person: Person, label: str, raw_value: str | None) -> None:
+def  _fill_person(person: Person, label: str, raw_value: str | None) -> None:
     if label == "Фамилия Имя Отчество":
         lines = _lines(raw_value)
         person.surname = lines[0] if len(lines) > 0 else None
@@ -332,7 +333,7 @@ def _fill_person(person: Person, label: str, raw_value: str | None) -> None:
         person.share_percent = _to_float(raw_value)
 
 
-def parse_extract_pdf(pdf_bytes: bytes) -> EgrulExtract:
+def  parse_extract_pdf(pdf_bytes: bytes) -> EgrulExtract:
     """Parse a ЕГРЮЛ extract PDF (as returned by download_extract_pdf) into
     structured data, using PyMuPDF's table extraction on the underlying
     "№ п/п | Наименование показателя | Значение показателя" table.
@@ -459,7 +460,7 @@ def parse_extract_pdf(pdf_bytes: bytes) -> EgrulExtract:
     return extract
 
 
-def get_extract(inn: str) -> EgrulExtract | None:
+def  get_extract(inn: str) -> EgrulExtract | None:
     """Download and parse the full ЕГРЮЛ extract for a company by INN.
 
     Returns None if the INN is not found.

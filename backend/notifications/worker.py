@@ -16,12 +16,14 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
 from datetime import date, datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from ..data_fetching import egrul_client, rmsp_client
 from . import detectors as det
 from .deadlines import Profile, materialize as materialize_deadlines
 from .planner import plan, tz_for
@@ -30,8 +32,16 @@ MSK = "Europe/Moscow"
 
 
 # ---- точки интеграции с вашим кодом (TODO) ---------------------------------
-async def fetch_egrul(inn: str) -> dict | None: ...       # ваш парсер → EgrulExtract.model_dump()
-async def fetch_msp(inn: str) -> dict | None: ...          # строка реестра МСП или None
+async def fetch_egrul(inn: str) -> dict | None:
+    extract = await asyncio.to_thread(egrul_client.get_extract, inn)
+    return asdict(extract) if extract is not None else None
+
+
+async def fetch_msp(inn: str) -> dict | None:
+    record = await asyncio.to_thread(rmsp_client.fetch_by_inn, inn)
+    return asdict(record) if record is not None else None
+
+
 async def save_snapshot(inn, source, data) -> dict | None: ...  # вернуть ПРЕДЫДУЩИЙ снимок
 async def upsert_events(inn, source, drafts) -> list: ...  # см. правила ключей в models.py
 async def open_condition_keys(inn, source) -> dict[str, str]: ...  # {key: type} открытых состояний
