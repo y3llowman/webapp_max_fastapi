@@ -11,7 +11,7 @@ from maxapi.types import ButtonsPayload, CallbackButton, MessageCreated
 from maxapi.context import BaseContext, State, StatesGroup
 
 from data_fetching import rmsp_client
-from databases.businesses_db import Business
+from databases.businesses_db import Business, UserBusiness
 from databases.engine_start import SessionLocal
 from databases.users_db import User
 from notifications.worker import process_egrul
@@ -90,7 +90,6 @@ async def _save_business(max_user_id: int, sender, inn: str, record: rmsp_client
         user.username = sender.username
         user.first_name = sender.first_name
         user.last_name = sender.last_name
-        user.inn = inn
 
         business = await db.get(Business, inn)
         if business is None:
@@ -113,6 +112,11 @@ async def _save_business(max_user_id: int, sender, inn: str, record: rmsp_client
         business.is_hitech = record.is_hitech
         business.is_partnership = record.is_partnership
         business.is_social = record.is_social
+
+        # user_businesses ссылается на users.id и businesses.inn — обе строки должны попасть в БД раньше связи
+        await db.flush()
+        if await db.get(UserBusiness, (user.id, inn)) is None:
+            db.add(UserBusiness(user_id=user.id, inn=inn))
 
         await db.commit()
 
@@ -143,6 +147,7 @@ async def on_hello(event: MessageCreated):
 async def on_inn(event: MessageCreated, context: BaseContext):
     # inn = (event.message.body.text or "").strip()
     inn = event.message.body.text.strip()
+    logger.info("Пользователь %s ввёл ИНН: %s", 'тип:' + str(type(inn)), 'ИНН:' + inn)
 
     if not is_valid_inn(inn):
         # пришел некорректный ИНН
@@ -165,7 +170,7 @@ async def on_inn(event: MessageCreated, context: BaseContext):
 
     # пришел корректный ИНН
     await _save_business(event.message.sender.user_id, event.message.sender, inn, record)
-    _start_radar(inn)
+    _start_radar(str(inn))
 
     await context.set_state(None)
     await event.message.answer(

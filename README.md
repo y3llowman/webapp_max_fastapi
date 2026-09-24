@@ -91,11 +91,11 @@ npm run build         →    COPY backend/
 ```text
 ┌──────────────────────┐        ┌────────────────────────┐
 │  backend (FastAPI)    │──TCP──▶│  postgres (PostgreSQL)  │
-│  порт 8000 наружу      │        │  порт 5432 наружу        │
+│  порт 8000 наружу      │        │  порт 5433 наружу        │
 └──────────────────────┘        └────────────────────────┘
 ```
 
-Контейнеры видят друг друга по имени сервиса как по hostname — поэтому в `DATABASE_URL` внутри `docker-compose.yml` указан хост `postgres`, а не `localhost`: `postgresql+asyncpg://max:max@postgres:5432/maxapp`. `depends_on: condition: service_healthy` заставляет backend ждать, пока Postgres не пройдёт `healthcheck` (`pg_isready`) — иначе backend упадёт при старте, пытаясь подключиться к ещё не готовой базе. `volumes: postgres_data` хранит данные Postgres отдельно от контейнера, поэтому `docker compose down` (без `-v`) их не стирает.
+Контейнеры видят друг друга по имени сервиса как по hostname — поэтому в `DATABASE_URL` внутри `docker-compose.yml` указан хост `postgres`, а не `localhost`: `postgresql+asyncpg://max:max@postgres:5432/maxapp`. С хоста (например, для бота, запущенного вне Docker) та же база доступна как `localhost:5433` — порт 5433, чтобы не конфликтовать с локально установленным PostgreSQL. `depends_on: condition: service_healthy` заставляет backend ждать, пока Postgres не пройдёт `healthcheck` (`pg_isready`) — иначе backend упадёт при старте, пытаясь подключиться к ещё не готовой базе. `volumes: postgres_data` хранит данные Postgres отдельно от контейнера, поэтому `docker compose down` (без `-v`) их не стирает.
 
 ### Команды
 
@@ -252,7 +252,7 @@ backend/
 ├── databases/                 # всё, что касается БД
 │   ├── engine_start.py        # async engine + SessionLocal + get_db
 │   ├── users_db.py            # Base (DeclarativeBase) + модель User, таблица `users`
-│   └── businesses_db.py       # модель Business, таблица `businesses`
+│   └── businesses_db.py       # модели Business и UserBusiness, таблицы `businesses` и `user_businesses`
 ├── data_fetching/
 │   └── rmsp_client.py         # клиент реестра МСП (rmsp.nalog.ru), поиск компании по ИНН
 ├── bot/                       # MAX/Telegram-хендлеры (частично legacy, см. ниже)
@@ -262,12 +262,13 @@ backend/
     └── env.py
 ```
 
-Таблицы `users` и `businesses` живут на одном `Base.metadata` в `databases/users_db.py`, поэтому `databases/__init__.py` создаёт их обе одним вызовом `init_db()` при старте приложения (`Base.metadata.create_all`).
+Таблицы `users`, `businesses` и `user_businesses` живут на одном `Base.metadata` в `databases/users_db.py`, поэтому `databases/__init__.py` создаёт их все одним вызовом `init_db()` при старте приложения (`Base.metadata.create_all`).
 
 ### Схема данных
 
-- **`users`** — участник MAX/Telegram: `max_user_id`, `username`, `first_name`, `last_name`, `photo_url`, а также необязательный `inn` (ИНН привязанного бизнеса).
-- **`businesses`** — данные компании из реестра МСП, ключ — `inn` (`ForeignKey("users.inn")`): `name`, `subject_type` (`UL`/`IP`), `category`, `ogrn`, `main_activity_code/name` (ОКВЭД), `region_code`, даты регистрации/исключения из реестра, контакты, флаги (`has_licenses`, `is_hitech`, `is_partnership`, `is_social`).
+- **`users`** — участник MAX/Telegram: `max_user_id`, `username`, `first_name`, `last_name`, `photo_url`.
+- **`user_businesses`** — какие ИНН отслеживает пользователь, связь многие-ко-многим: `user_id` (`ForeignKey("users.id")`) + `inn` (`ForeignKey("businesses.inn")`), составной первичный ключ. У пользователя может быть несколько ИНН, один ИНН могут отслеживать несколько пользователей.
+- **`businesses`** — данные компании из реестра МСП, ключ — `inn`: `name`, `subject_type` (`UL`/`IP`), `category`, `ogrn`, `main_activity_code/name` (ОКВЭД), `region_code`, даты регистрации/исключения из реестра, контакты, флаги (`has_licenses`, `is_hitech`, `is_partnership`, `is_social`).
 - Заполняется через `data_fetching/rmsp_client.py::fetch_by_inn(inn)` — POST-запрос к недокументированному эндпоинту `rmsp.nalog.ru/search-proc.json`. Пока это отдельный скрипт, не подключённый как FastAPI-роут.
 
 Дальше по мере роста доменной модели сюда стоит добавить `app/schemas/` (Pydantic DTO) и `app/services/` (бизнес-логика), чтобы не разрастался `main.py`/роуты.

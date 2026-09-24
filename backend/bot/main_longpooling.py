@@ -33,8 +33,10 @@ bot = Bot(token=os.getenv('MAX_TOKEN'))
 # что "__main__") - со своим отдельным Dispatcher, на который и регистрировались
 # бы все обработчики, пока реальный polling шёл бы на пустом dp.
 from message_handler import dp  # noqa: E402
+from databases import init_db
 
 async def main():
+    await init_db()
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 

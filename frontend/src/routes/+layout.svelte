@@ -1,11 +1,10 @@
 <script lang="ts">
   import "../app.css";
   import { onMount } from "svelte";
-  import WebApp from "@twa-dev/sdk";
 
   let { children } = $props();
   onMount(() => {
-    WebApp.ready();
+    window.WebApp?.ready?.();
   });
 </script>
 

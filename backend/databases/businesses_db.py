@@ -7,7 +7,7 @@ from databases.users_db import Base
 class Business(Base):
     __tablename__ = "businesses"
 
-    inn: Mapped[str] = mapped_column(String(12), ForeignKey("users.inn"), primary_key=True)
+    inn: Mapped[str] = mapped_column(String(12), primary_key=True)
     name: Mapped[str] = mapped_column(String(500))
     subject_type: Mapped[str] = mapped_column(String(2))
     category: Mapped[int] = mapped_column(Integer)
@@ -25,3 +25,12 @@ class Business(Base):
     is_hitech: Mapped[bool] = mapped_column(Boolean)
     is_partnership: Mapped[bool] = mapped_column(Boolean)
     is_social: Mapped[bool] = mapped_column(Boolean)
+
+
+class UserBusiness(Base):
+    """Связь многие-ко-многим: у пользователя может быть несколько ИНН, один ИНН — у нескольких пользователей."""
+
+    __tablename__ = "user_businesses"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    inn: Mapped[str] = mapped_column(String(12), ForeignKey("businesses.inn"), primary_key=True, index=True)
