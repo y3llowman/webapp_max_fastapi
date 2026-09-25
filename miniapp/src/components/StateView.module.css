@@ -1,0 +1,75 @@
+/* Блок центрируется по вертикали в свободном месте экрана — как в S2, S3, S5, S6. */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px 10px;
+  text-align: center;
+}
+
+.illustration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 119px;
+  height: 119px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+}
+
+.success { background: var(--success-soft); color: var(--success-strong); }
+.danger { background: var(--danger-soft); color: var(--danger-strong); }
+.warning { background: var(--warning-soft); color: var(--warning-strong); }
+.primary { background: var(--primary-light); color: var(--primary-text); }
+
+.title {
+  margin-top: 12px;
+  color: var(--text-primary);
+}
+
+.text {
+  margin-top: 12px;
+  max-width: 333px;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.extra {
+  margin-top: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 8px 12px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--text-primary);
+}
+
+.pillIcon {
+  color: var(--primary-text);
+}

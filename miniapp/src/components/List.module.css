@@ -1,0 +1,86 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+}
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 14px 16px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.cell + .cell {
+  border-top: 1px solid var(--border);
+}
+
+.withLead {
+  gap: 14px;
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.interactive {
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+
+.interactive:active {
+  background: var(--surface-2);
+}
+
+.interactive:disabled,
+.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.caption {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex: none;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  flex: none;
+}
+
+/* Нативный select растянут на всю строку и прозрачен: системный выбор на телефоне,
+   а выглядит как строка из макета. */
+.select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px; /* меньше 16 — iOS зумит страницу при фокусе */
+}
+
+.cell:has(.select:focus-visible) {
+  box-shadow: inset var(--focus-ring);
+}

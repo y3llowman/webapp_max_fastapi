@@ -1,0 +1,71 @@
+/* Строка 64 = 12 + плитка 40 + 12; текст раскрытого пункта — под заголовком (отступ 68). */
+
+.group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  overflow: hidden;
+}
+
+.item + .item {
+  border-top: 1px solid var(--border);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.head:active {
+  background: var(--surface-2);
+}
+
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  flex: none;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.caption {
+  color: var(--text-secondary);
+}
+
+.chevron {
+  color: var(--text-secondary);
+  flex: none;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 48px 16px 68px;
+  color: var(--text-primary);
+}
+
+.steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

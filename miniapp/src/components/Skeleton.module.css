@@ -1,0 +1,30 @@
+.skeleton {
+  display: block;
+  background: var(--skeleton);
+  flex: none;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.card {
+  display: flex;
+  gap: 12px;
+  height: 87px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

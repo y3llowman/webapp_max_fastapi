@@ -1,0 +1,45 @@
+/* Шаги из 02: заголовок → 16 → текст → 16 → разделитель → 16 → поле → 24 → преимущества. */
+
+.lead {
+  margin-top: 16px;
+  color: var(--text-secondary);
+}
+
+.divider {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.alert {
+  margin-top: 16px;
+}
+
+.benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.benefit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  color: var(--text-primary);
+}
+
+.benefitIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-m);
+  background: var(--primary-light);
+  color: var(--primary-text);
+  flex: none;
+}

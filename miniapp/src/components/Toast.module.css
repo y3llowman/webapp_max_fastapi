@@ -1,0 +1,50 @@
+.region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--dock, 0px) + 16px);
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--gutter);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+  min-height: 56px;
+  padding: 8px 4px 8px 16px;
+  border-radius: var(--radius-m);
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  pointer-events: auto;
+  animation: rise 0.2s ease-out;
+}
+
+.icon {
+  flex: none;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.action {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border-radius: var(--radius-s);
+  color: var(--toast-action);
+  flex: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

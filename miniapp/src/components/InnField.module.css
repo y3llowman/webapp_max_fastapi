@@ -1,0 +1,78 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: var(--text-secondary);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Рамка — внутренней тенью, чтобы текст не прыгал между 1px (Default) и 2px (Focus/Error). */
+.box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  transition: box-shadow 0.12s;
+}
+
+.box:focus-within {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.error,
+.error:focus-within {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.disabled {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  caret-color: var(--primary);
+  font-size: 16px; /* меньше 16 — iOS зумит страницу при фокусе */
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.input::placeholder {
+  color: var(--text-secondary);
+}
+
+.input:disabled {
+  color: var(--text-tertiary);
+}
+
+.errorIcon {
+  color: var(--danger-strong);
+  flex: none;
+}
+
+.hint {
+  color: var(--text-secondary);
+}
+
+.hintError {
+  color: var(--danger-strong);
+}
