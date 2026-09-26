@@ -21,3 +21,5 @@ coverage.xml
 Dockerfile
 .idea
 *.yml
+**/node_modules
+.venv

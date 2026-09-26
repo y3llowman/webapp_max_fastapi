@@ -33,6 +33,10 @@ from dataclasses import dataclass, field
 
 import pymupdf
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 BASE_URL = "https://egrul.nalog.ru/"
 
@@ -105,7 +109,7 @@ class EgrulSearchRecord:
 
 def  _request_json(session: requests.Session, method: str, url: str, **kwargs) -> dict:
     resp = session.request(method, url, timeout=15, **kwargs)
-    print(resp)
+    logger.info(f"Requesting {url}: {resp.status_code}")
     resp.raise_for_status()
     data = resp.json()
     if data.get("captchaRequired") or data.get("ERRORS"):

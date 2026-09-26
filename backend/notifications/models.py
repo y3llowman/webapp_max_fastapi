@@ -7,7 +7,7 @@ from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Index, Integer, Str
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base  # ← поправьте путь под проект
+from databases.users_db import Base
 
 
 class RegistrySnapshot(Base):
@@ -28,6 +28,7 @@ class BusinessProfile(Base):
     inn: Mapped[str] = mapped_column(String(12), ForeignKey("businesses.inn"), primary_key=True)
     tax_regime: Mapped[str | None] = mapped_column(String(16), nullable=True)
     has_employees: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    headcount: Mapped[int | None] = mapped_column(Integer, nullable=True)  # нижняя граница диапазона, HEADCOUNT_RU
     flags: Mapped[dict] = mapped_column(JSONB, default=dict)       # {"works_with_selfemployed": true, ...}
     bank_biks: Mapped[list] = mapped_column(JSONB, default=list)   # для проверки блокировок в «БАНКИНФОРМ»
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

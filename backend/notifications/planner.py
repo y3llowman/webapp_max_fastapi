@@ -1,20 +1,59 @@
-"""Планирование окон отправки уведомлений (worker.schedule()).
+"""Когда напоминать: настройки пользователя (экран «Уведомления»), метка напоминания и тихие часы.
 
-TODO: реальная логика ("умные часы" 09:00-21:00 по местному времени, разброс
-между remind_before из catalog.py) ещё не спроектирована. Здесь — заглушки,
-чтобы process_egrul() отрабатывал целиком уже сейчас; schedule() в worker.py
-тоже пока заглушка и результат plan() никуда не сохраняет.
+Расписание не хранится заранее: раз в день worker.queue_reminders() смотрит, сколько дней осталось
+до каждого открытого срока, и сверяет это с настройкой remind. После срока напоминает каждый день,
+пока задачу не закроют кнопкой «Сделано» или «Не актуально».
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
+from typing import Literal
+from zoneinfo import ZoneInfo
 
-DEFAULT_TZ = "Europe/Moscow"
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+MSK = ZoneInfo("Europe/Moscow")
+REMIND_HOUR = 9  # напоминания уходят в 09:00 по Москве
+
+REMIND_OFFSETS: dict[str, tuple[int, ...]] = {
+    "d30-7-1": (30, 7, 1, 0),
+    "d7-3-1": (7, 3, 1, 0),
+    "d3-0": (3, 0),
+    "d0": (0,),
+}
 
 
-def tz_for(region_code: str | None) -> str:
-    return DEFAULT_TZ
+class NotificationSettings(BaseModel):
+    """users.notification_settings; наружу — в camelCase, как NotificationSettings в types.ts.
+    push и email только хранятся: каналов, кроме чата MAX, пока нет."""
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    chat: bool = True
+    push: bool = False
+    email: bool = False
+    email_address: str | None = None
+    quiet: bool = True
+    quiet_range: str = Field("22:00–08:00", pattern=r"^\d{2}:\d{2}–\d{2}:\d{2}$")
+    remind: Literal["d30-7-1", "d7-3-1", "d3-0", "d0"] = "d30-7-1"
+
+    @classmethod
+    def of(cls, stored: dict | None) -> NotificationSettings:
+        return cls.model_validate(stored or {})
+
+    def is_quiet(self, now: datetime) -> bool:
+        if not self.quiet:
+            return False
+        start, end = (time.fromisoformat(part) for part in self.quiet_range.split("–"))
+        t = now.astimezone(MSK).time()
+        return start <= t or t < end if start > end else start <= t < end
 
 
-def plan(event_type: str, due: date | None, now: datetime, tz: str) -> list:
-    return []
+def reminder_label(due: date, today: date, settings: NotificationSettings) -> str | None:
+    """Метка напоминания на сегодня или None. Метка входит в dedup_key: одно напоминание на метку."""
+    days_left = (due - today).days
+    if days_left < 0:
+        return f"overdue:{today:%y%m%d}"
+    if days_left in REMIND_OFFSETS[settings.remind]:
+        return f"T-{days_left}"
+    return None

@@ -278,6 +278,9 @@ TEMPLATES["inspection.planned"] = """{% import "_m" as m with context %}
 
 <b>Что сделать</b>
 Изучите проверочные листы по этому виду контроля на портале КНД и подготовьте документы заранее.
+
+<b>Ваши права</b>
+Проверка без записи в едином реестре контрольных мероприятий — грубое нарушение, её результаты недействительны (ст. 91 закона № 248-ФЗ). Вы вправе присутствовать при проверке, давать пояснения и обжаловать решение (ст. 36 закона № 248-ФЗ).
 """
 
 TEMPLATES["cert.expiring"] = """{% import "_m" as m with context %}
@@ -295,9 +298,9 @@ TEMPLATES["cert.expiring"] = """{% import "_m" as m with context %}
 # Правило вёрстки: блочные теги — на отдельных строках (trim_blocks их «съедает» целиком),
 # условия внутри строки — выражениями {{ a if cond else b }}.
 TEMPLATES["deadline.group"] = """
-{% set lead = {3: "Через 3 дня", 1: "Завтра", 0: "Сегодня последний день", -1: "Срок прошёл"} %}
+{% set n = (due - today).days %}
 {% set shifted = items|selectattr("shifted")|list %}
-{{ icon }} <b>{{ lead.get(offset, "Скоро") }}: {{ due|date_ru }}</b>
+{{ icon }} <b>{% if n > 1 %}Через {{ n }} {{ n|plural("день", "дня", "дней") }}{% elif n == 1 %}Завтра{% elif n == 0 %}Сегодня последний день{% else %}Просрочено на {{ -n }} {{ n|plural("день", "дня", "дней") }}{% endif %}: {{ due|date_ru }}</b>
 {{ company.name }} · ИНН {{ company.inn }}
 
 {% for d in items %}

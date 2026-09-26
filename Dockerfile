@@ -1,8 +1,8 @@
 FROM node:20 AS frontend-builder
 WORKDIR /app
-COPY frontend/package*.json ./
+COPY miniapp/package*.json ./
 RUN npm ci
-COPY frontend/ ./
+COPY miniapp/ ./
 RUN npm run prepare && npm run build
 
 FROM python:3.12-slim AS backend

@@ -57,3 +57,12 @@ For multi-step tasks, state a brief plan:
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 ---
+
+## What are we doing?
+We are doing a bot and a mini-app based in messenger "MAX", the idea is as follows:
+We're building a product for small businesses: a chatbot and a mini-app in the MAX messenger. The problem we're starting from: businesses find out about new obligations and requirements late and blindly. Newsletters and news are written for everyone at once, and the entrepreneur has to figure out each time whether it applies to them or not. The result is either hours spent checking, or a missed deadline and a fine.
+What we do instead. A person enters their INN (taxpayer identification number) — then we automatically build a company profile from open government registries: type of activity, business category, headcount, licenses, participation in procurement, registered inspections and warnings. The product tracks changes for a specific business and reports only what applies specifically to it: a new obligation has appeared, a deadline is approaching, an entry has appeared in the inspections registry, the company has dropped out of the SME registry. And it doesn't just notify — it prepares the required document and keeps reminding until the task is closed.
+
+Stick to the main idea and dont try to add unnecessary features unless they directly help the main idea or the realisation of the bot depends on theese features from a technical standpoint
+
+Write (or add to already written/edit) neat, necessary and understandable for human and LLM documentation to CURRENT_STATE.md, keep it up-to-date with every change, its must end with a TODO unless the project is pronounced ready to ship (will be directly stated so in the prompt)

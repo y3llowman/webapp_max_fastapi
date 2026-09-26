@@ -30,11 +30,11 @@ cp .env.example .env
 Заполни:
 
 ```env
-MAX_BOT_TOKEN=...
+MAX_TOKEN=...
 SECRET_KEY=...
 ```
 
-`MAX_BOT_TOKEN` — секрет бота MAX. Никогда не коммить его в Git.
+`MAX_TOKEN` — секрет бота MAX. Никогда не коммить его в Git.
 
 ### 2. Docker
 

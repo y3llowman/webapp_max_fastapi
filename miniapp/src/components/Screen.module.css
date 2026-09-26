@@ -1,0 +1,50 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Контент начинается в 8px под шапкой MAX, поля 20 — как в макетах (y=128 при шапке до 120). */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap, 12px);
+  flex: 1;
+  padding: 8px var(--gutter) 24px;
+}
+
+.chrome {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  height: 56px;
+  padding: 0 8px;
+  background: var(--max-header);
+  color: var(--text-primary);
+}
+
+.chromeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+.chromeTitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.verified {
+  color: var(--max-verified);
+  flex: none;
+}

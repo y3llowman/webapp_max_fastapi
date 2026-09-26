@@ -1,0 +1,71 @@
+.bar {
+  display: flex;
+  align-items: center;
+  height: 48px;
+}
+
+.company {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: var(--tap);
+  color: var(--text-primary);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: var(--text-secondary);
+  flex: none;
+}
+
+.bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--radius-m);
+  color: var(--text-primary);
+  flex: none;
+}
+
+.bell:active {
+  background: var(--surface-2);
+}
+
+.unread {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  margin-left: 6px;
+  padding: 0 12px;
+  border-radius: var(--radius-m);
+  background: var(--primary-light);
+  color: var(--primary-text);
+  white-space: nowrap;
+  flex: none;
+}
+
+.pill:active {
+  background: var(--primary-light-hover);
+}

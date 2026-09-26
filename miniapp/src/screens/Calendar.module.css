@@ -1,0 +1,21 @@
+/* День в неделе: заголовок → 8 → карточки через 12; между днями — общий шаг экрана 12. */
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-margin-top: 64px;
+}
+
+.dayHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -4px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

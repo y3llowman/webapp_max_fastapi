@@ -1,0 +1,92 @@
+/* 04: чип → 10 → иконка 44 и заголовок → 16 → аккордеоны. */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 16px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-m);
+  background: var(--primary-light);
+  color: var(--primary-text);
+  flex: none;
+}
+
+/* E4: кольцо 88 в 16px под шапкой, заголовок и текст через 12. */
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  text-align: center;
+}
+
+.ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--success-soft);
+  color: var(--success-strong);
+}
+
+.doneText {
+  max-width: 320px;
+  color: var(--text-secondary);
+  text-wrap: balance;
+}
+
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeletonHead {
+  display: flex;
+  gap: 12px;
+}
+
+.skeletonLines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+.skeletonCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+}
+
+.skeletonRow {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+}

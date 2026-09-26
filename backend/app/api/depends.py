@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from databases import get_db
+from databases.businesses_db import Business, current_business
 from databases.users_db import User
 from core.security import decode_access_token
 
@@ -20,3 +21,14 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+
+async def get_current_business(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Business:
+    """404 — компании нет, мини-приложение покажет экран подключения."""
+    business = await current_business(db, user.id)
+    if business is None:
+        raise HTTPException(status_code=404, detail="Company not connected")
+    return business

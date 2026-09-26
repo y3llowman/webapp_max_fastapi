@@ -1,20 +1,28 @@
 import asyncio
+import html
 import logging
 import re
-from datetime import date
+from dataclasses import asdict
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 
 from maxapi import Dispatcher, F
-from maxapi.filters.command import CommandStart
-from maxapi.types import ButtonsPayload, CallbackButton, MessageCreated
+from maxapi.enums.parse_mode import ParseMode
+from maxapi.filters.command import Command, CommandStart
+from maxapi.types import BotStarted, ButtonsPayload, CallbackButton, MessageCallback, MessageCreated, OpenAppButton
 from maxapi.context import BaseContext, State, StatesGroup
 
+from bot.client import bot, bot_id
+from core.config import DEBUG
 from data_fetching import rmsp_client
-from databases.businesses_db import Business, UserBusiness
+from databases.businesses_db import Business, current_business, save_business
 from databases.engine_start import SessionLocal
 from databases.users_db import User
-from notifications.worker import process_egrul
+from notifications import worker
+from notifications.models import BusinessProfile, RadarEvent
+from radar.deadlines import CATEGORY_RU, HEADCOUNT_RU, REGIME_RU, region_name
+from radar.render import company_name, date_ru, date_short, plural
 
 logger = logging.getLogger(__name__)
 
@@ -44,43 +52,92 @@ def is_valid_inn(inn: str) -> bool:
     )
 
 
-SUBJECT_TYPE_RU = {"UL": "юридическое лицо", "IP": "ИП"}
-CATEGORY_RU = {1: "микропредприятие", 2: "малое предприятие", 3: "среднее предприятие"}
+ASK_INN = "Пришлите ИНН компании или ИП — 10 или 12 цифр. Профиль соберём сами из реестров ФНС."
+
+# Режима и численности нет в открытых реестрах — спрашиваем одним тапом
+QUESTIONS = {
+    "regime": ("Какой у вас режим налогообложения? От него зависят декларации и сроки уплаты.", REGIME_RU),
+    "staff": ("Сколько у вас сотрудников? От этого зависят отчёты за работников и квота для инвалидов.",
+              HEADCOUNT_RU),
+}
 
 
-def _company_summary(record: rmsp_client.RmspRecord) -> str:
+def company_card(business: Business, profile: BusinessProfile | None) -> str:
+    """Профиль компании: название, ОКВЭД, категория, численность, регион — всё из реестров и ответов."""
+    size = [CATEGORY_RU.get(business.category)]
+    if profile and profile.headcount is not None:
+        size.append(HEADCOUNT_RU[profile.headcount])
     lines = [
-        f"Нашли по ИНН {record.inn} в реестре МСП:",
-        record.name,
-        SUBJECT_TYPE_RU.get(record.subject_type, record.subject_type),
-        f"Категория: {CATEGORY_RU.get(record.category, 'нет данных')}",
-        f"ОГРН: {record.ogrn}",
-        f"Осн. вид деятельности: {record.main_activity_code} — {record.main_activity_name}",
-        f"Регион (код): {record.region_code}",
+        f"<b>{html.escape(company_name(business.name))}</b>",
+        f"ИНН {business.inn} · ОГРН {business.ogrn}",
+        f"ОКВЭД: {business.main_activity_code} — {html.escape(business.main_activity_name)}",
+        " · ".join(filter(None, size)),
+        f"Регион: {region_name(business.region_code) or business.region_code}",
     ]
-    if record.phone:
-        lines.append(f"Телефон: {record.phone}")
-    if record.email:
-        lines.append(f"Email: {record.email}")
-    if record.website:
-        lines.append(f"Сайт: {record.website}")
-    lines.append("")
-    lines.append("Если что-то из этого неверно — поправьте кнопкой ниже:")
+    if profile and profile.tax_regime:
+        lines.append(f"Режим: {REGIME_RU[profile.tax_regime]}")
+    lines.append(f"<i>Источник: реестр МСП (ФНС), данные на {date_ru(business.updated_at.date())}</i>")
+    return "\n".join(line for line in lines if line)
+
+
+def app_keyboard(app_id: int):
+    return ButtonsPayload(buttons=[[OpenAppButton(text="Открыть ленту обязанностей", contact_id=app_id)]]).pack()
+
+
+def question_keyboard(question: str):
+    _, options = QUESTIONS[question]
+    return ButtonsPayload(buttons=[
+        [CallbackButton(text=label[:1].upper() + label[1:], payload=f"q:{question}:{value}")]
+        for value, label in options.items()
+    ]).pack()
+
+
+async def say(max_user_id: int, text: str, *attachments) -> None:
+    await bot.send_message(user_id=max_user_id, text=text, format=ParseMode.HTML,
+                           attachments=list(attachments) or None)
+
+
+async def find_user(db, max_user_id: int) -> User | None:
+    return (await db.execute(select(User).where(User.max_user_id == max_user_id))).scalar_one_or_none()
+
+
+async def obligations_summary(inn: str) -> str:
+    today = date.today()
+    async with SessionLocal() as db:
+        events = list(await db.scalars(
+            select(RadarEvent)
+            .where(RadarEvent.inn == inn, RadarEvent.key.like(f"obl:{inn}:%"),
+                   RadarEvent.status == "open", RadarEvent.due >= today)
+            .order_by(RadarEvent.due)
+        ))
+    titles = list(dict.fromkeys(event.payload["title"] for event in events))
+    lines = [f"📡 <b>Радар настроен: {len(titles)} {plural(len(titles), 'обязанность', 'обязанности', 'обязанностей')}</b>"]
+    lines += [f"• {title}" for title in titles]
+    if events:
+        lines += ["", "<b>Ближайшие сроки</b>"]
+        lines += [f"• {date_short(e.due)} — {e.payload['title']} ({e.payload['period'].lower()})" for e in events[:5]]
+    lines += ["", "Напомню заранее и буду напоминать после срока, пока задача не закрыта. "
+                  "Изменился режим или численность — /profile. Другая компания — пришлите её ИНН."]
     return "\n".join(lines)
 
 
-def _correction_keyboard():
-    return ButtonsPayload(
-        buttons=[
-            [CallbackButton(text="Название", payload="fix:name")],
-            [CallbackButton(text="ОКВЭД", payload="fix:okved")],
-            [CallbackButton(text="Регион", payload="fix:region")],
-            [CallbackButton(text="Контакты", payload="fix:contacts")],
-        ]
-    ).pack()
+async def next_step(max_user_id: int) -> None:
+    """После ИНН и после каждого ответа: следующий вопрос профиля или итог — список обязанностей."""
+    async with SessionLocal() as db:
+        user = await find_user(db, max_user_id)
+        business = await current_business(db, user.id) if user else None
+        profile = await db.get(BusinessProfile, business.inn) if business else None
+    if business is None:
+        await say(max_user_id, ASK_INN)
+    elif profile is None or profile.tax_regime is None:
+        await say(max_user_id, QUESTIONS["regime"][0], question_keyboard("regime"))
+    elif profile.headcount is None:
+        await say(max_user_id, QUESTIONS["staff"][0], question_keyboard("staff"))
+    else:
+        await say(max_user_id, await obligations_summary(business.inn), app_keyboard(await bot_id()))
 
 
-async def _save_business(max_user_id: int, sender, inn: str, record: rmsp_client.RmspRecord) -> None:
+async def _save_business(max_user_id: int, sender, record: rmsp_client.RmspRecord) -> Business:
     async with SessionLocal() as db:
         result = await db.execute(select(User).where(User.max_user_id == max_user_id))
         user = result.scalar_one_or_none()
@@ -91,34 +148,9 @@ async def _save_business(max_user_id: int, sender, inn: str, record: rmsp_client
         user.first_name = sender.first_name
         user.last_name = sender.last_name
 
-        business = await db.get(Business, inn)
-        if business is None:
-            business = Business(inn=inn)
-            db.add(business)
-        business.name = record.name
-        business.subject_type = record.subject_type
-        business.category = record.category
-        business.ogrn = record.ogrn
-        business.main_activity_code = record.main_activity_code
-        business.main_activity_name = record.main_activity_name
-        business.region_code = record.region_code
-        business.is_new = record.is_new
-        business.date_registered = record.date_registered
-        business.date_excluded = record.date_excluded
-        business.phone = record.phone
-        business.email = record.email
-        business.website = record.website
-        business.has_licenses = record.has_licenses
-        business.is_hitech = record.is_hitech
-        business.is_partnership = record.is_partnership
-        business.is_social = record.is_social
-
-        # user_businesses ссылается на users.id и businesses.inn — обе строки должны попасть в БД раньше связи
+        # user_businesses ссылается на users.id — пользователь должен попасть в БД раньше связи
         await db.flush()
-        if await db.get(UserBusiness, (user.id, inn)) is None:
-            db.add(UserBusiness(user_id=user.id, inn=inn))
-
-        await db.commit()
+        return await save_business(db, user.id, record)
 
 
 def _on_radar_done(task: asyncio.Task) -> None:
@@ -127,15 +159,61 @@ def _on_radar_done(task: asyncio.Task) -> None:
 
 
 def _start_radar(inn: str) -> None:
-    task = asyncio.create_task(process_egrul(inn, date.today()))
+    task = asyncio.create_task(worker.process_egrul(inn, date.today()))
     task.add_done_callback(_on_radar_done)
+
+
+async def start(max_user_id: int, context: BaseContext) -> None:
+    """Нет компании — ждём ИНН; есть — продолжаем с того места, где остановились."""
+    async with SessionLocal() as db:
+        user = await find_user(db, max_user_id)
+        connected = user is not None and await current_business(db, user.id) is not None
+    if not connected:
+        await context.set_state(OrderState.waiting_for_inn)
+    await next_step(max_user_id)
 
 
 # /start
 @dp.message_created(CommandStart())
 async def hello(event: MessageCreated, context: BaseContext):
-    await context.set_state(OrderState.waiting_for_inn)
-    await event.message.answer("Введите свой ИНН:")
+    await start(event.message.sender.user_id, context)
+
+
+# первый запуск бота кнопкой «Начать»
+@dp.bot_started()
+async def on_bot_started(event: BotStarted, context: BaseContext):
+    await start(event.user.user_id, context)
+
+
+@dp.message_created(Command("profile"))
+async def on_profile(event: MessageCreated):
+    max_user_id = event.message.sender.user_id
+    async with SessionLocal() as db:
+        user = await find_user(db, max_user_id)
+        business = await current_business(db, user.id) if user else None
+        profile = await db.get(BusinessProfile, business.inn) if business else None
+    if business is None:
+        await say(max_user_id, ASK_INN)
+        return
+    await say(max_user_id, company_card(business, profile), ButtonsPayload(buttons=[
+        [CallbackButton(text="Изменить режим налогообложения", payload="ask:regime")],
+        [CallbackButton(text="Изменить численность", payload="ask:staff")],
+        [OpenAppButton(text="Открыть ленту обязанностей", contact_id=await bot_id())],
+    ]).pack())
+
+
+if DEBUG:
+    # Триггеры для демо: ждать 30 дней до напоминания или исключения из реестра на защите нельзя
+    @dp.message_created(Command("demo_remind"))
+    async def on_demo_remind(event: MessageCreated):
+        sent = await worker.demo_remind(event.message.sender.user_id)
+        if not sent:
+            await event.message.answer("Открытых сроков нет — сначала подключите компанию: пришлите ИНН.")
+
+    @dp.message_created(Command("demo_event"))
+    async def on_demo_event(event: MessageCreated):
+        args = event.message.body.text.split()[1:]
+        await event.message.answer(await worker.demo_event(event.message.sender.user_id, args[0] if args else ""))
 
 
 @dp.message_created(F.message.body.text == "привет")
@@ -169,11 +247,87 @@ async def on_inn(event: MessageCreated, context: BaseContext):
         return
 
     # пришел корректный ИНН
-    await _save_business(event.message.sender.user_id, event.message.sender, inn, record)
+    max_user_id = event.message.sender.user_id
+    business = await _save_business(max_user_id, event.message.sender, record)
+    await worker.registry_loaded(inn, asdict(record))
     _start_radar(str(inn))
 
     await context.set_state(None)
-    await event.message.answer(
-        _company_summary(record),
-        attachments=[_correction_keyboard()],
-    )
+    async with SessionLocal() as db:
+        profile = await db.get(BusinessProfile, inn)
+    await say(max_user_id, "Нашли вашу компанию:\n" + company_card(business, profile), app_keyboard(await bot_id()))
+    await next_step(max_user_id)
+
+
+# ИНН без /start: состояние бота живёт в памяти и сбрасывается при перезапуске
+@dp.message_created(F.message.body.text.regexp(r"^\s*(\d{10}|\d{12})\s*$"))
+async def on_inn_any_state(event: MessageCreated, context: BaseContext):
+    await on_inn(event, context)
+
+
+@dp.message_callback(F.callback.payload.startswith("ask:"))
+async def on_ask(event: MessageCallback):
+    await event.answer()
+    question = event.callback.payload.removeprefix("ask:")
+    await say(event.callback.user.user_id, QUESTIONS[question][0], question_keyboard(question))
+
+
+@dp.message_callback(F.callback.payload.startswith("q:"))
+async def on_answer(event: MessageCallback):
+    """Ответ на вопрос профиля: сохранить, пересчитать обязанности, задать следующий вопрос."""
+    _, question, value = event.callback.payload.split(":")
+    max_user_id = event.callback.user.user_id
+    async with SessionLocal() as db:
+        user = await find_user(db, max_user_id)
+        business = await current_business(db, user.id) if user else None
+        if business is None:
+            await event.answer(notification="Сначала пришлите ИНН")
+            return
+        profile = await db.get(BusinessProfile, business.inn) or BusinessProfile(inn=business.inn, flags={}, bank_biks=[])
+        was_complete = profile.tax_regime is not None and profile.headcount is not None
+        if question == "regime":
+            profile.tax_regime = value
+            label = REGIME_RU[value]
+        else:
+            profile.headcount = int(value)
+            profile.has_employees = profile.headcount > 0
+            label = HEADCOUNT_RU[profile.headcount]
+        profile.answered_at = datetime.now(timezone.utc)
+        db.add(profile)
+        await db.commit()
+        inn = business.inn
+    added, removed = await worker.materialize_for(inn)
+    await event.answer(notification=f"Сохранили: {label}")
+    if not was_complete:
+        await next_step(max_user_id)
+        return
+    # профиль уже был заполнен — сообщаем, как изменился список обязанностей
+    lines = ["Профиль обновлён."]
+    if added:
+        lines += ["", "<b>Появились обязанности</b>", *[f"• {title}" for title in added]]
+    if removed:
+        lines += ["", "<b>Больше не касаются</b>", *[f"• {title}" for title in removed]]
+    if not added and not removed:
+        lines.append("Список обязанностей не изменился.")
+    await say(max_user_id, "\n".join(lines), app_keyboard(await bot_id()))
+
+
+@dp.message_callback(F.callback.payload.startswith("ev:"))
+async def on_event_action(event: MessageCallback):
+    """Кнопки под напоминанием: ev:<ids>:done|snooze1d|mute (radar.render.keyboard)."""
+    _, ids, action = event.callback.payload.split(":")
+    answer = await worker.apply_action(event.callback.user.user_id, [int(i) for i in ids.split(",")], action)
+    await event.answer(notification=answer)
+
+
+@dp.message_callback(F.callback.payload.startswith("doc:"))
+async def on_document(event: MessageCallback):
+    """«Подготовить документ» под напоминанием: doc:<event_id>:<код документа>."""
+    max_user_id = event.callback.user.user_id
+    async with SessionLocal() as db:
+        _, events = await worker.user_events(db, max_user_id, [int(event.callback.payload.split(":")[1])])
+        if not events or not events[0].payload.get("document"):
+            await event.answer(notification="Задача не найдена")
+            return
+        await event.answer(notification="Готовим документ…")
+        await worker.send_document(db, events[0], max_user_id)

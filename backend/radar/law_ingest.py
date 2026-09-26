@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 
 import httpx
 
-from ..notifications.law_rules import classify, to_feed_item
+from radar.law_rules import classify, to_feed_item
 
 API = "http://publication.pravo.gov.ru/api"
 BLOCKS = ("president", "assembly", "government", "federal_authorities", "subjects")

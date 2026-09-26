@@ -25,7 +25,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://max:max@postgres:5432/maxapp
-      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN}
+      MAX_TOKEN: ${MAX_TOKEN}
       SECRET_KEY: ${SECRET_KEY}
       DEBUG: ${DEBUG:-true}
       MAX_INIT_DATA_MAX_AGE: ${MAX_INIT_DATA_MAX_AGE:-86400}
@@ -39,9 +39,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: max_bot
-    command: ["python", "backend/bot/main.py"]
+    command: ["python", "backend/bot/main_longpooling.py"]
     environment:
+      DATABASE_URL: postgresql+asyncpg://max:max@postgres:5432/maxapp
       MAX_TOKEN: ${MAX_TOKEN}
+      DEBUG: ${DEBUG:-true}  # true — включены демо-команды /demo_remind и /demo_event
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

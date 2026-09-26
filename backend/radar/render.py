@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 
 from jinja2 import DictLoader, Environment, StrictUndefined, pass_context
 
@@ -27,17 +27,26 @@ def plural(n: int, one: str, few: str, many: str) -> str:
     return many
 
 
-def date_ru(d: date | None) -> str:
+def as_date(d: date | str | None) -> date | None:
+    """Даты в radar_events.payload лежат строками (JSONB): ISO или «ДД.ММ.ГГГГ» из реестров."""
+    if not isinstance(d, str):
+        return d
+    return datetime.strptime(d, "%d.%m.%Y").date() if "." in d else date.fromisoformat(d[:10])
+
+
+def date_ru(d: date | str | None) -> str:
+    d = as_date(d)
     return f"{d.day} {MONTHS[d.month - 1]} {d.year}" if d else "—"
 
 
-def date_short(d: date | None) -> str:
+def date_short(d: date | str | None) -> str:
+    d = as_date(d)
     return f"{d:%d.%m}" if d else "—"
 
 
 @pass_context
-def rel(ctx, d: date) -> str:
-    n = (d - ctx["today"]).days
+def rel(ctx, d: date | str) -> str:
+    n = (as_date(d) - ctx["today"]).days
     if n == 0:
         return "сегодня"
     if n == 1:
@@ -104,7 +113,8 @@ def render(template: str, ctx: dict) -> str:
 
 
 # ----------------------------------------------------------------- клавиатура и тело
-def keyboard(event_ids: list[int], source_url: str | None = None, docs: list | None = None) -> dict:
+def keyboard(event_ids: list[int], source_url: str | None = None, docs: list | None = None,
+             app_id: int | None = None) -> dict:
     ids = ",".join(map(str, event_ids))           # payload короткий: ev:<ids>:<action>
     rows = [[{"type": "callback", "text": "✅ Сделано", "payload": f"ev:{ids}:done"},
              {"type": "callback", "text": "⏰ Завтра", "payload": f"ev:{ids}:snooze1d"}],
@@ -113,7 +123,9 @@ def keyboard(event_ids: list[int], source_url: str | None = None, docs: list | N
     for d in docs or []:
         rows.insert(-1, [{"type": "callback", "text": f"📄 {d.button}", "payload": f"doc:{event_ids[0]}:{d.code}"}])
     link_row = []
-    # TODO: кнопка type="open_app" на мини-апп (поля кнопки — по dev.max.ru, NewMessageBody)
+    if app_id:  # мини-приложение бота app_id; диплинк task_<id> открывает экран задачи
+        link_row.append({"type": "open_app", "text": "Открыть", "contact_id": app_id,
+                         "payload": f"task_{event_ids[0]}"})
     if source_url:
         link_row.append({"type": "link", "text": "Источник", "url": source_url})
     if link_row:

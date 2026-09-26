@@ -1,11 +1,8 @@
 import asyncio
 import logging
-import os
 import signal
 import sys
 from pathlib import Path
-
-from maxapi import Bot
 
 from dotenv import load_dotenv
 
@@ -23,8 +20,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__file__)
 
-bot = Bot(token=os.getenv('MAX_TOKEN'))
-
 # message_handler владеет dp (создаёт Dispatcher и регистрирует обработчики).
 # Импортируем dp отсюда, а не наоборот: этот файл всегда запускается как
 # скрипт (__name__ == "__main__"), и обратный импорт "from main_longpooling
@@ -33,10 +28,16 @@ bot = Bot(token=os.getenv('MAX_TOKEN'))
 # что "__main__") - со своим отдельным Dispatcher, на который и регистрировались
 # бы все обработчики, пока реальный polling шёл бы на пустом dp.
 from message_handler import dp  # noqa: E402
-from databases import init_db
+from bot.client import bot  # noqa: E402
+from databases import init_db  # noqa: E402
+from notifications.worker import build_scheduler, queue_reminders  # noqa: E402
 
 async def main():
     await init_db()
+    # планировщик радара живёт в процессе бота: бот один, задачи не задвоятся
+    scheduler = build_scheduler()
+    scheduler.start()
+    await queue_reminders()  # если бот лежал в 09:00 — напоминания на сегодня всё равно уйдут
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
@@ -68,6 +69,7 @@ async def main():
     else:
         await polling_task
 
+    scheduler.shutdown(wait=False)
     await bot.close_session()
 
 

@@ -1,0 +1,30 @@
+/* Шкала из кита, раздел «Типографика»: размер / интерлиньяж · начертание · трекинг.
+   В макете Inter; в продакшне — системный шрифт платформы (SF Pro на iOS,
+   Roboto на Android) с теми же размерами — поэтому веб-шрифт не грузим. */
+
+.t-hero { font-size: 32px; line-height: 40px; font-weight: 700; letter-spacing: -0.6px; }
+.t-header { font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.4px; }
+.t-subheader { font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -0.2px; }
+.t-title { font-size: 16px; line-height: 22px; font-weight: 600; }
+.t-body { font-size: 15px; line-height: 20px; font-weight: 400; }
+.t-body-strong { font-size: 15px; line-height: 20px; font-weight: 600; }
+.t-detail { font-size: 14px; line-height: 20px; font-weight: 400; }
+.t-detail-strong { font-size: 14px; line-height: 20px; font-weight: 600; }
+.t-description { font-size: 13px; line-height: 18px; font-weight: 400; }
+.t-description-strong { font-size: 13px; line-height: 18px; font-weight: 600; }
+.t-label { font-size: 13px; line-height: 16px; font-weight: 500; }
+.t-label-strong { font-size: 13px; line-height: 16px; font-weight: 700; }
+.t-tag { font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.2px; }
+.t-tag-strong { font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: 0.2px; }
+.t-note { font-size: 12px; line-height: 16px; font-weight: 400; }
+.t-note-strong { font-size: 12px; line-height: 16px; font-weight: 600; }
+
+.t-action-l { font-size: 16px; line-height: 20px; font-weight: 600; }
+.t-action-m { font-size: 14px; line-height: 18px; font-weight: 600; }
+.t-action-s { font-size: 13px; line-height: 16px; font-weight: 600; }
+.t-action-xs { font-size: 11px; line-height: 14px; font-weight: 600; }
+
+.c-primary { color: var(--text-primary); }
+.c-secondary { color: var(--text-secondary); }
+.c-tertiary { color: var(--text-tertiary); }
+.c-accent { color: var(--primary-text); }

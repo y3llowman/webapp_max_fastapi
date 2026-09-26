@@ -1,0 +1,81 @@
+.bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--surface);
+  padding-bottom: var(--safe-bottom);
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.active {
+  color: var(--primary-text);
+}
+
+/* iOS: 57 = разделитель 1 + 9 + иконка 24 + 2 + подпись 16 + 5 */
+.ios {
+  border-top: 1px solid var(--border);
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+.ios .tab {
+  gap: 2px;
+  padding: 9px 0 5px;
+}
+
+.ios .label {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.ios .active .label {
+  font-weight: 600;
+}
+
+/* Android: 64 = 12 + пилюля 32 + 4 + подпись 16, без разделителя */
+.android .tab {
+  gap: 4px;
+  padding: 12px 0 0;
+  height: 64px;
+}
+
+.android .indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
+}
+
+.android .active .indicator {
+  background: var(--primary-light);
+}
+
+.android .label {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.android .active .label {
+  font-weight: 700;
+}
+
+.indicator {
+  display: flex;
+}

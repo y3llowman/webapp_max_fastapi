@@ -1,0 +1,63 @@
+/* Task Card, 353×96: иконка 40 / r12, текст с отступом 69, шеврон 20 по центру иконки. */
+
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  color: var(--text-primary);
+  transition: background-color 0.12s;
+}
+
+.card:active {
+  background: var(--surface-2);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-m);
+  background: var(--primary-light);
+  color: var(--primary-text);
+  flex: none;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.title,
+.subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.chevron {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  flex: none;
+}

@@ -1,6 +1,11 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from dataclasses import asdict
+from datetime import datetime, timezone
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
+from data_fetching.rmsp_client import RmspRecord
 from databases.users_db import Base
 
 
@@ -25,6 +30,8 @@ class Business(Base):
     is_hitech: Mapped[bool] = mapped_column(Boolean)
     is_partnership: Mapped[bool] = mapped_column(Boolean)
     is_social: Mapped[bool] = mapped_column(Boolean)
+    # когда последний раз перечитали реестр МСП — «обновлено …» в профиле мини-приложения
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class UserBusiness(Base):
@@ -34,3 +41,36 @@ class UserBusiness(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     inn: Mapped[str] = mapped_column(String(12), ForeignKey("businesses.inn"), primary_key=True, index=True)
+    # текущая компания пользователя — последняя подключённая
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+async def save_business(db: AsyncSession, user_id: int, record: RmspRecord) -> Business:
+    """Сохраняет компанию из реестра МСП и делает её текущей у пользователя. Общее для бота и API."""
+    now = datetime.now(timezone.utc)
+
+    business = await db.get(Business, record.inn) or Business(inn=record.inn)
+    # поля Business совпадают с полями RmspRecord
+    for field, value in asdict(record).items():
+        setattr(business, field, value)
+    business.updated_at = now
+    db.add(business)
+
+    link = await db.get(UserBusiness, (user_id, record.inn)) or UserBusiness(user_id=user_id, inn=record.inn)
+    link.connected_at = now
+    db.add(link)
+
+    await db.commit()
+    return business
+
+
+async def current_business(db: AsyncSession, user_id: int) -> Business | None:
+    """Текущая компания пользователя — последняя подключённая, в боте или в мини-приложении."""
+    result = await db.execute(
+        select(Business)
+        .join(UserBusiness)
+        .where(UserBusiness.user_id == user_id)
+        .order_by(UserBusiness.connected_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
